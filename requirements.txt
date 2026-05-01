@@ -1,9 +1,14 @@
 # Data Manipulation & Analysis
-pandas>=2.0.0
-numpy>=1.24.0
+numpy==1.26.4
+scipy==1.10.1
+pandas==2.2.3
 
 # Machine Learning
-scikit-learn>=1.2.2
+scikit-learn==1.2.2
+joblib==1.3.2
+xgboost>=2.0.0
+lightgbm>=4.0.0
+catboost>=1.2.0
 
 # Visualization
 matplotlib>=3.7.0
@@ -17,6 +22,8 @@ ipykernel>=6.20.0
 fastapi>=0.95.0
 uvicorn>=0.22.0
 pydantic>=2.0.0
+streamlit>=1.30.0
+requests>=2.31.0
 
 # Utilities
 python-dotenv>=1.0.0

@@ -27,6 +27,7 @@ requests>=2.31.0
 
 # Utilities
 python-dotenv>=1.0.0
+pyarrow>=23.0.1
 pytest>=7.3.0
 snowflake-connector-python>=3.17.0
 sortedcontainers>=2.4.0

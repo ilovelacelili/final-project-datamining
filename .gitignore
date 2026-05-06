@@ -37,5 +37,8 @@ models/*
 # MacOS
 .DS_Store
 
+# Linux
+mise.toml
+
 # Archivos de log
 *.log

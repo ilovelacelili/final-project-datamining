@@ -1,24 +1,24 @@
 import os
+import sys
 import time
 import urllib.request
 from datetime import datetime, timezone
+from pathlib import Path
+
 import pandas as pd
 import snowflake.connector
 from snowflake.connector.pandas_tools import write_pandas
-from dotenv import load_dotenv
 
-load_dotenv()
+# Permitir `python src/data/ingestion.py` desde la raíz.
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-# --- CONFIGURACIÓN ---
-CONN_PARAMS = {
-    "account": os.environ.get("SNOWFLAKE_ACCOUNT"),
-    "user": os.environ.get("SNOWFLAKE_USER"),
-    "password": os.environ.get("SNOWFLAKE_PASSWORD"),
-    "database": os.environ.get("SNOWFLAKE_DATABASE"),
-    "schema": os.environ.get("SNOWFLAKE_SCHEMA_RAW", "RAW"),
-    "warehouse": os.environ.get("SNOWFLAKE_WAREHOUSE"),
-    "role": os.environ.get("SNOWFLAKE_ROLE", "SYSADMIN")
-}
+from src.utils.config import get_conn
+
+# La ingesta escribe en RAW con rol SYSADMIN, distinto a los demás módulos.
+INGEST_SCHEMA = os.environ.get("SNOWFLAKE_SCHEMA_RAW", "RAW")
+INGEST_ROLE = os.environ.get("SNOWFLAKE_ROLE", "SYSADMIN")
 
 START_YEAR = 2015
 END_YEAR = 2025
@@ -117,11 +117,11 @@ def load_taxi_zones(conn, db, schema):
 
 def main():
     print(f"Iniciando Pipeline de Ingesta | RUN_ID: {RUN_ID}")
-    conn = snowflake.connector.connect(**CONN_PARAMS)
+    conn = get_conn(schema=INGEST_SCHEMA, role=INGEST_ROLE)
     cursor = conn.cursor()
 
-    db = CONN_PARAMS['database']
-    schema = CONN_PARAMS['schema']
+    db = os.environ.get("SNOWFLAKE_DATABASE")
+    schema = INGEST_SCHEMA
     
     # 1. Configurar contexto
     cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db}")

@@ -1,14 +1,74 @@
 import requests
+import pandas as pd
 import streamlit as st
 
 
 API_URL = "http://127.0.0.1:8000/predict"
 
+TAXI_ZONES_URL = "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv"
+
+# Mapas de catálogos (ver src/data/sql/01_create_int_trips_enriched.sql).
+# El frontend muestra el texto descriptivo, pero el payload a la API sigue
+# enviando los IDs originales — la lógica del modelo no cambia.
+VENDOR_LABELS = {
+    1: "Creative Mobile Technologies, LLC",
+    2: "Curb Mobility, LLC",
+    3: "Unknown",
+    4: "Unknown",
+    5: "Unknown",
+    6: "Myle Technologies Inc",
+    7: "Helix",
+}
+
+PAYMENT_TYPE_LABELS = {
+    0: "Flex Fare trip",
+    1: "Credit card",
+    2: "Cash",
+    3: "No charge",
+    4: "Dispute",
+    5: "Unknown",
+    6: "Voided trip",
+}
+
+RATE_CODE_LABELS = {
+    1: "Standard rate",
+    2: "JFK",
+    3: "Newark",
+    4: "Nassau or Westchester",
+    5: "Negotiated fare",
+    6: "Group ride",
+    99: "Null/unknown",
+}
+
+TRIP_TYPE_LABELS = {
+    1: "Street-hail",
+    2: "Dispatch",
+}
+
+STORE_FWD_LABELS = {"N": "No", "Y": "Yes"}
+
+
+@st.cache_data(show_spinner=False)
+def load_taxi_zones() -> dict:
+    """Lookup id -> 'ID - Zone (Borough)'. Cacheado para no re-fetchear."""
+    try:
+        df = pd.read_csv(TAXI_ZONES_URL)
+        return {
+            int(row.LocationID): f"{int(row.LocationID)} - {row.Zone} ({row.Borough})"
+            for row in df.itertuples(index=False)
+        }
+    except Exception:
+        return {i: f"Zone {i}" for i in range(1, 266)}
+
+
+def fmt(mapping: dict):
+    return lambda key: f"{key} - {mapping.get(key, 'Unknown')}"
+
 
 st.set_page_config(
     page_title="NYC Taxi Fare Predictor",
     page_icon="🚕",
-    layout="centered"
+    layout="wide"
 )
 
 st.title("NYC Taxi Fare Predictor")
@@ -21,6 +81,12 @@ st.info(
     "`uvicorn src.api.main:app --reload`"
 )
 
+zone_labels = load_taxi_zones()
+zone_options = sorted(zone_labels.keys())
+DAY_LABELS = {
+    0: "Sunday", 1: "Monday", 2: "Tuesday", 3: "Wednesday",
+    4: "Thursday", 5: "Friday", 6: "Saturday",
+}
 
 with st.form("fare_prediction_form"):
     st.subheader("Trip Information")
@@ -35,9 +101,10 @@ with st.form("fare_prediction_form"):
         )
 
         vendor_id = st.selectbox(
-            "Vendor ID",
-            options=[1, 2],
-            index=1
+            "Vendor",
+            options=list(VENDOR_LABELS.keys()),
+            index=1,
+            format_func=fmt(VENDOR_LABELS)
         )
 
         pickup_hour = st.slider(
@@ -51,7 +118,8 @@ with st.form("fare_prediction_form"):
             "Day of Week",
             options=list(range(0, 7)),
             index=2,
-            help="Use the same encoding from the training data."
+            format_func=lambda d: f"{d} - {DAY_LABELS[d]}",
+            help="Snowflake encoding: 0=Sunday ... 6=Saturday"
         )
 
         month = st.selectbox(
@@ -82,20 +150,18 @@ with st.form("fare_prediction_form"):
         )
 
     with col2:
-        pu_location_id = st.number_input(
-            "Pickup Location ID",
-            min_value=1,
-            max_value=265,
-            value=237,
-            step=1
+        pu_location_id = st.selectbox(
+            "Pickup Location",
+            options=zone_options,
+            index=zone_options.index(237) if 237 in zone_options else 0,
+            format_func=lambda i: zone_labels.get(i, f"Zone {i}")
         )
 
-        do_location_id = st.number_input(
-            "Dropoff Location ID",
-            min_value=1,
-            max_value=265,
-            value=161,
-            step=1
+        do_location_id = st.selectbox(
+            "Dropoff Location",
+            options=zone_options,
+            index=zone_options.index(161) if 161 in zone_options else 0,
+            format_func=lambda i: zone_labels.get(i, f"Zone {i}")
         )
 
         pu_borough = st.selectbox(
@@ -111,27 +177,31 @@ with st.form("fare_prediction_form"):
         )
 
         rate_code_id = st.selectbox(
-            "Rate Code ID",
-            options=[1, 2, 3, 4, 5, 6, 99],
-            index=0
+            "Rate Code",
+            options=list(RATE_CODE_LABELS.keys()),
+            index=0,
+            format_func=fmt(RATE_CODE_LABELS)
         )
 
         payment_type = st.selectbox(
             "Payment Type",
-            options=[1, 2, 3, 4, 5, 6],
-            index=0
+            options=list(PAYMENT_TYPE_LABELS.keys()),
+            index=1,
+            format_func=fmt(PAYMENT_TYPE_LABELS)
         )
 
         trip_type = st.selectbox(
             "Trip Type",
-            options=[1, 2],
-            index=0
+            options=list(TRIP_TYPE_LABELS.keys()),
+            index=0,
+            format_func=fmt(TRIP_TYPE_LABELS)
         )
 
         store_and_fwd_flag = st.selectbox(
             "Store and Forward Flag",
             options=["N", "Y"],
-            index=0
+            index=0,
+            format_func=lambda v: f"{v} - {STORE_FWD_LABELS[v]}"
         )
 
     st.subheader("Derived Features")
